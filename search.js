@@ -60,7 +60,6 @@
         // for around 1000 records and between 200 & 500ms on a mobile device.
         var perf = (_util.now() - start);
         console.log('Instantiation took ' + perf + "ms");
-        document.querySelector('.container').innerHTML += '<p>Instantiation took ' + perf + "ms</p>";
     };
 
     _private.formatData = function(rawData) {
@@ -73,7 +72,7 @@
             while (j--) {
                 var area = searchAreas[j];
                 formattedData[i] = formattedData[i] || {};
-                formattedData[i][area.key] = _private.formatText(item[area.key]);
+                formattedData[i][area.key] = _private.formatText(item[area.key], area.engine);
             }
         }
         return formattedData;
@@ -116,7 +115,7 @@
         return dict;
     };
 
-    _private.formatText = function(text){
+    _private.formatText = function(text, engine){
         var source = text;
         var replacements = [];
         var transforms = [
@@ -124,6 +123,11 @@
             'replaceDiatrics',
             'removeSpecialChars'
         ];
+
+        if(engine === "html") {
+            transforms.unshift("removeHTML");
+        }
+
 
         for (var i = 0; i < transforms.length; i++) {
             var result = _private.transform[transforms[i]](text, replacements);
@@ -158,7 +162,7 @@
 
     _public.search = function(searched){
         var start = _util.now();
-        var formatted = _private.formatText(searched);
+        var formatted = _private.formatText(searched, 'text');
         var words = formatted.words;
         var matches = [];
         var i;
