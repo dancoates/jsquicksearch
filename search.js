@@ -5,7 +5,7 @@
 /**
 *
 * Javascript search
-* Dependencies:
+* Dependencies: none
 *
 **/
 
@@ -32,7 +32,19 @@
 
         // If dependencies aren't available, die here.
         if(!_private.checkDeps()) {
-            console.error('Search.js >>> Error: Unmet dependencies');
+            _util.console.error('Search.js >>> Error: Unmet dependencies');
+            return false;
+        }
+
+        // If data isn't available, die here
+        if(!data) {
+            _util.console.error('Search.js >>> Error: Data is undefined');
+            return false;
+        }
+
+        // If searchAreas aren't defined, die here
+        if(!options.searchAreas) {
+            _util.console.error('Search.js >>> Error: Search Areas are undefined');
             return false;
         }
 
@@ -42,7 +54,7 @@
         _public = this;
 
         _private.defaults = {
-            highlight: true,
+            highlight: false,
             highlightElem : 'span',
             highlightClass : 'search-highlight',
             partialTolerance: 10,
@@ -54,18 +66,25 @@
         _public.rawData = data;
         _public.settings = _util.extend(_private.defaults, options);
         _private.formattedData = _private.formatData(_public.rawData);
+
+        if(_private.formattedData === false) {
+            _util.console.error("Search.js >>> No usable data found");
+            return;
+        }
+
         _public.dict = _private.buildDict(_private.formattedData);
 
         // Should be less than 100ms on an okay computer  & browser 
         // for around 1000 records and between 200 & 500ms on a mobile device.
         var perf = (_util.now() - start);
-        console.log('Instantiation took ' + perf + "ms");
+        _util.console.log('Instantiation took ' + perf + "ms");
     };
 
     _private.formatData = function(rawData) {
         var searchAreas = _public.settings.searchAreas;
         var i = rawData.length;
         var formattedData = [];
+        var totalData = 0;
         while(i--) {
             var item = rawData[i];
             var j = searchAreas.length;
@@ -73,7 +92,14 @@
                 var area = searchAreas[j];
                 formattedData[i] = formattedData[i] || {};
                 formattedData[i][area.key] = _private.formatText(item[area.key], area.engine);
+                if(formattedData[i][area.key] !== false){
+                    totalData ++;
+                }
             }
+        }
+        if(totalData === 0) {
+            
+            return false;
         }
         return formattedData;
     };
@@ -116,6 +142,10 @@
     };
 
     _private.formatText = function(text, engine){
+        if(typeof text === "undefined") {
+            _util.console.warn("Search.js >>> Error: Search Area key not found");
+            return false;
+        }
         var source = text;
         var replacements = [];
         var transforms = [
@@ -124,6 +154,7 @@
             'removeSpecialChars'
         ];
 
+        // If using html engine, add removeHTML transform to start of list
         if(engine === "html") {
             transforms.unshift("removeHTML");
         }
@@ -145,20 +176,10 @@
 
 
     _private.checkDeps = function(){
-        return typeof _ !== "undefined";
+        return true;
     };
 
-    _private.saveReplacement = function(replacements, replacement, pos, match) {
-        if(replacement !== match && match.length !== replacement.length) {
-            replacements.push({
-                start : pos,
-                removed : match.length,
-                added : replacement.length,
-                replacement : replacement,
-                match: match
-            });
-        }
-    };
+    
 
     _public.search = function(searched){
         var start = _util.now();
@@ -185,8 +206,8 @@
         var organizedMatches = _private.organizeMatches(matchedData);
         var results = _private.rankResults(organizedMatches);
 
-        console.log("Search took: " + (_util.now() - start) + "ms");
-
+        _util.console.log("Search took: " + (_util.now() - start) + "ms");
+        //console.log(results);
         return _public.settings.highlight ? _private.highlightResults(results) : results;
     };
 
@@ -305,8 +326,8 @@
             }
 
             for(var area in rangesPerArea) {
-                var ranges = _private.mergeRanges(rangesPerArea[area]);
-                // var ranges = rangesPerArea[area];
+                // var ranges = _private.mergeRanges(rangesPerArea[area]);
+                var ranges = rangesPerArea[area];
                 var sourceText = result[area].source;
 
                 for (var k = 0; k < ranges.length; k++) {
@@ -314,6 +335,7 @@
                     var lowerText = sourceText.slice(0, range[0]);
                     var middleText = sourceText.slice(range[0], range[1]);
                     var upperText = sourceText.slice(range[1], sourceText.length);
+                    console.log(middleText);
 
                     middleText = "<" + _public.settings.highlightElem +
                                  " class='" + _public.settings.highlightClass + "'>" + 
@@ -323,7 +345,6 @@
 
                 result[area].highlighted = sourceText;
             }
-            
             
         }
         return results;
@@ -342,7 +363,7 @@
                 if(
                     lower >= mergedLower &&
                     lower <= mergedUpper &&
-                    upper >= mergedUpper
+                    upper > mergedUpper
                 ) {
                     matched = true;
                     mergedUpper = upper;
@@ -352,7 +373,7 @@
                 if(
                     upper <= mergedUpper &&
                     upper >= mergedLower &&
-                    lower <= mergedLower
+                    lower < mergedLower
                 ) {
                     matched = true;
                     mergedLower = lower;
@@ -373,15 +394,15 @@
 
     _private.normalizeHighlightRange = function(start, end, replacements) {
         var i = replacements.length;
+        var offset = 0;
         while(i--) {
             var replacement = replacements[i];
-            if(replacement.start < start) {
-                start -= replacement.added;
-                start += replacement.removed;
-            }
-            if(replacement.start < end) {
-                end -= replacement.added;
-                end += replacement.removed;
+            var delta = replacement.added - replacement.removed;
+            if(replacement.start  <= start) {
+                start -= delta;
+                end -= delta;
+            } else if(replacement.start <= end) {
+                end -= delta;
             }
         }
         return [start, end];
@@ -401,29 +422,14 @@
             }), replacements];
         },
         removeHTML : function(str, replacements) {
-            var tagBody = '(?:[^"\'>]|"[^"]*"|\'[^\']*\')*';
-            var tagOrComment = new RegExp(
-                '<(?:'
-                // Comment body.
-                + '!--(?:(?:-*[^->])*--+|-?)'
-                // Special "raw text" elements whose content should be elided.
-                + '|script\\b' + tagBody + '>[\\s\\S]*?</script\\s*'
-                + '|style\\b' + tagBody + '>[\\s\\S]*?</style\\s*'
-                // Regular name
-                + '|/?[a-z]'
-                + tagBody
-                + ')>',
-                'gi');
-                        
-            return [str.replace(tagOrComment, function(match, pos){
-                var replacement = "";
-                _private.saveReplacement(replacements, replacement, pos, match);
-                return replacement;
-            }).replace(/</g, function(match, pos){
-                var replacement = '&lt;';
-                _private.saveReplacement(replacements, replacement, pos, match);
-                return replacement;
-            }), replacements];
+            // Note - this is a fairly naïve implementation of stripping tags.
+            // it is not particularly secure and assumes that the search data is from a trusted source
+            return [
+                str.replace(/<\/?[^>]+>/g, function(match, pos){
+                    var replacement = "";
+                    _private.saveReplacement(replacements, replacement, pos, match);
+                    return replacement;
+                }), replacements];
         },
         removeSpecialChars : function(str, replacements) {
             return [
@@ -443,6 +449,18 @@
 
                 replacements
             ];
+        }
+    };
+
+    _private.saveReplacement = function(replacements, replacement, pos, match) {
+        if(replacement !== match || match.length !== replacement.length) {
+            replacements.push({
+                start : pos,
+                removed : match.length,
+                added : replacement.length,
+                replacement : replacement,
+                match: match
+            });
         }
     };
 
@@ -757,6 +775,28 @@
             return new Date().getTime;
         }
     };
+
+    _util.console = (function(){
+        var noop = function () {};
+        var method;
+        var methods = [
+            'assert', 'clear', 'count', 'debug', 'dir', 'dirxml', 'error',
+            'exception', 'group', 'groupCollapsed', 'groupEnd', 'info', 'log',
+            'markTimeline', 'profile', 'profileEnd', 'table', 'time', 'timeEnd',
+            'timeStamp', 'trace', 'warn'
+        ];
+        var i = methods.length;
+        var console = (window.console = window.console || {});
+
+        while (i--) {
+            method = methods[i];
+            // Only stub undefined methods.
+            if (!console[method]) {
+                console[method] = noop;
+            }   
+        }
+        return console;
+    })();
 
 
 

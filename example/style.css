@@ -1,0 +1,35 @@
+
+* {
+    -webkit-box-sizing: border-box;
+    -moz-box-sizing: border-box;
+    box-sizing: border-box;
+}
+.container {
+    max-width: 960px;
+    width: 100%;
+    margin: 0 auto;
+    padding: 1em;
+    text-align: center;
+}
+
+input {
+    width: 100%;
+    max-width: 400px;
+    border-radius: 4px;
+    border: 1px solid #ccc;
+    outline: none;
+    background: #f9f9f9;
+    padding: 10px;
+}
+
+h1 {
+    color: #4574C3;
+}
+
+span.search-highlight {
+    background: #FBFF84;
+}
+
+.result-container {
+    text-align: left;
+}
