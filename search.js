@@ -10,7 +10,7 @@
 **/
 
 
-(function(window, document, undefined){
+(function(window, document){
     // Anything under the private object will not be 
     // exposed to anyone using the library
     var _private = {};
@@ -27,7 +27,7 @@
     var _util = {};
 
     // Constructor
-    var Search = function(data, options){
+    var Search = function(data, options, debug){
         var start = _util.now();
 
         // If dependencies aren't available, die here.
@@ -54,7 +54,7 @@
         _public = this;
 
         _private.defaults = {
-            highlight: false,
+            highlight: true,
             highlightElem : 'span',
             highlightClass : 'search-highlight',
             partialTolerance: 10,
@@ -338,7 +338,7 @@
                     console.log(middleText);
 
                     middleText = "<" + _public.settings.highlightElem +
-                                 " class='" + _public.settings.highlightClass + "'>" + 
+                                 " class='" + _public.settings.highlightClass + "'>" +
                                  middleText + "</" + _public.settings.highlightElem + ">";
                     sourceText = lowerText + middleText + upperText;
                 }
@@ -758,7 +758,7 @@
 
     _util.arrIndexOf = function(array, item) {
         var i = 0, length = array.length;
-        if (array == null) return -1;
+        if (!array) return -1;
         if (Array.prototype.indexOf && array.indexOf === Array.prototype.indexOf) return array.indexOf(item);
         for (; i < length; i++) if (array[i] === item) return i;
         return -1;
@@ -793,15 +793,24 @@
             // Only stub undefined methods.
             if (!console[method]) {
                 console[method] = noop;
-            }   
+            }
         }
         return console;
     })();
 
 
 
+    var args = [Search.prototype, _public];
+
+    // If debug global (used for testing) is set, 
+    // then also expose the _private and _util
+    // functions so they can be tested.
+    if(JSQUICKSEARCH_DEBUG) {
+        args = args.concat([_private, _util]);
+    }
+
     // Extend prototype and bind to window
-    _util.extend(Search.prototype, _public);
+    _util.extend.apply(window, args);
     window.Search = Search;
 
 })(window, document);

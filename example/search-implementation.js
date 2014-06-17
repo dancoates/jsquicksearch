@@ -16,6 +16,7 @@ $.getJSON('data.example.json', function(json, textStatus) {
         ]
 
     });
+    console.log(search);
 
     var $resultsContainer = $('.results');
 
