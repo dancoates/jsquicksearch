@@ -335,7 +335,6 @@
                     var lowerText = sourceText.slice(0, range[0]);
                     var middleText = sourceText.slice(range[0], range[1]);
                     var upperText = sourceText.slice(range[1], sourceText.length);
-                    console.log(middleText);
 
                     middleText = "<" + _public.settings.highlightElem +
                                  " class='" + _public.settings.highlightClass + "'>" +
@@ -391,20 +390,23 @@
     };
 
 
-
+    // NOTE: This is not working because .replace callback does not mutate position arg @TODO fix it fool.
     _private.normalizeHighlightRange = function(start, end, replacements) {
         var i = replacements.length;
         var offset = 0;
+        //console.log("Old Pos was: " + start);
         while(i--) {
             var replacement = replacements[i];
             var delta = replacement.added - replacement.removed;
-            if(replacement.start  <= start) {
+            if(replacement.start + delta <= start) {
                 start -= delta;
                 end -= delta;
-            } else if(replacement.start <= end) {
+            } else if(replacement.start + delta >= start && replacement.start - delta <= end) {
                 end -= delta;
             }
+            //console.log("\"" + replacement.match + "\"("+ delta + "chars) was changed at pos: " + replacement.start +", new pos is: " + start);
         }
+        //console.log('Final pos is :' + start);
         return [start, end];
     };
 
@@ -445,6 +447,10 @@
                     var replacement = " ";
                     _private.saveReplacement(replacements, replacement, pos, match);
                     return replacement;
+                }).replace(/^\s|\s$/g, function(match, pos){
+                    var replacement = "";
+                    _private.saveReplacement(replacements, replacement, pos, match);
+                    return replacement;
                 }),
 
                 replacements
@@ -453,7 +459,7 @@
     };
 
     _private.saveReplacement = function(replacements, replacement, pos, match) {
-        if(replacement !== match || match.length !== replacement.length) {
+        if(replacement !== match && match.length !== replacement.length) {
             replacements.push({
                 start : pos,
                 removed : match.length,
