@@ -26,16 +26,12 @@
     // the implementation
     var _util = {};
 
-    // Constructor
+    /*===================================
+    =            Constructor            =
+    ===================================*/
+    
     var Search = function(data, options, debug){
         var start = _util.now();
-
-        // If dependencies aren't available, die here.
-        if(!_private.checkDeps()) {
-            _util.console.error('Search.js >>> Error: Unmet dependencies');
-            return false;
-        }
-
         // If data isn't available, die here
         if(!data) {
             _util.console.error('Search.js >>> Error: Data is undefined');
@@ -80,6 +76,11 @@
         _util.console.log('Instantiation took ' + perf + "ms");
     };
 
+
+    /*=======================================
+    =            Text Formatting            =
+    =======================================*/
+
     _private.formatData = function(rawData) {
         var searchAreas = _public.settings.searchAreas;
         var i = rawData.length;
@@ -98,47 +99,9 @@
             }
         }
         if(totalData === 0) {
-            
             return false;
         }
         return formattedData;
-    };
-
-
-    _private.buildDict = function(data) {
-        var dict = {
-            search: {},
-            index : {}
-        };
-        var searchAreas = _public.settings.searchAreas;
-        var i = data.length;
-        while(i--) {
-            var item = data[i];
-            var j = searchAreas.length;
-            while (j--) {
-                var area = searchAreas[j];
-                var formatted = item[area.key];
-                var pos = formatted.text.length + 1;
-
-                var k = formatted.words.length;
-                while(k--) {
-                    var word = formatted.words[k];
-                    var len = word.length;
-                    pos -=  len + 1;
-                    if(len <= 1) continue;
-                    dict.search[len] = dict.search[len] || "";
-                    dict.search[len] += word;
-                    dict.index[len] = dict.index[len] || [];
-                    dict.index[len].push({
-                        index : i,
-                        key : area.key,
-                        word : word,
-                        pos : pos
-                    });
-                }
-            }
-        }
-        return dict;
     };
 
     _private.formatText = function(text, engine){
@@ -146,7 +109,7 @@
             _util.console.warn("Search.js >>> Error: Search Area key not found");
             return false;
         }
-        var source = text;
+        var original = text;
         var replacements = [];
         var transforms = [
             'lowerCase',
@@ -165,28 +128,137 @@
             text = result[0];
             replacements = result[1];
         }
+
         return {
-            source : source,
-            text: text,
+            original : original,
+            formatted: text,
             replacements : replacements,
             words: text.split(/ /)
         };
     };
 
+    _private.transform = {
+        lowerCase : function(str, replacements) {
+            return [str.toLowerCase(), replacements];
+        },
+        replaceDiatrics : function(str, replacements) {
+            var offset = 0;
+            return [str.replace(/[^\u0000-\u007E]/g, function(match, pos) {
+                var replacement = _private.diacriticsMap[match] || match;
+                _private.saveReplacement(replacements, replacement, pos, match, offset);
+                offset += match.length - replacement.length;
+                return replacement;
+            }), replacements];
+        },
+        removeHTML : function(str, replacements) {
+            var offset = 0;
+            // Note - this is a fairly naïve implementation of stripping tags.
+            // it is not particularly secure and assumes that the search data is from a trusted source
+            return [
+                str.replace(/<\/?[^>]+>/g, function(match, pos){
+                    var replacement = "";
+                    _private.saveReplacement(replacements, replacement, pos, match, offset);
+                    offset += match.length - replacement.length;
+                    return replacement;
+                }), replacements];
+        },
+        removeSpecialChars : function(str, replacements) {
+            var offset = 0;
+            str = str.replace(/[\'\’]/g, function(match, pos){
+                var replacement =  "";
+                _private.saveReplacement(replacements, replacement, pos, match, offset);
+                offset += match.length - replacement.length;
+                return replacement;
+            });
+            offset = 0;
+            str = str.replace(/[^a-zA-Z0-9]/g, function(match, pos){
+                var replacement = " ";
+                _private.saveReplacement(replacements, replacement, pos, match, offset);
+                offset += match.length - replacement.length;
+                return replacement;
+            });
+            offset = 0;
+            str = str.replace(/\s\s+/g, function(match, pos) {
+                var replacement = " ";
+                _private.saveReplacement(replacements, replacement, pos, match, offset);
+                offset += match.length - replacement.length;
+                return replacement;
+            });
+            offset = 0;
+            str = str.replace(/^\s|\s$/g, function(match, pos){
+                var replacement = "";
+                _private.saveReplacement(replacements, replacement, pos, match, offset);
+                offset += match.length - replacement.length;
+                return replacement;
+            });
 
-
-    _private.checkDeps = function(){
-        return true;
+            return [str, replacements];
+        }
     };
 
-    
+    _private.saveReplacement = function(replacements, replacement, pos, match, offset) {
+        if(replacement !== match && replacement.length !== match.length) {
+            replacements.push({
+                start : pos - offset,
+                removed : match.length,
+                added : replacement.length,
+                replacement : replacement,
+                match: match
+            });
+        }
+    };
 
+    /*===========================================
+    =            Building Dictionary            =
+    ===========================================*/
+
+    _private.buildDict = function(data) {
+        var dict = {
+            search: {},
+            index : {}
+        };
+        var searchAreas = _public.settings.searchAreas;
+        var i = data.length;
+        while(i--) {
+            var item = data[i];
+            var j = searchAreas.length;
+            while (j--) {
+                var area = searchAreas[j];
+                var searchData = item[area.key];
+                var pos = searchData.formatted.length + 1;
+                var k = searchData.words.length;
+                while(k--) {
+                    var word = searchData.words[k];
+                    var len = word.length;
+                    pos -=  len + 1;
+                    if(len <= 1) continue;
+                    dict.search[len] = dict.search[len] || "";
+                    dict.search[len] += word;
+                    dict.index[len] = dict.index[len] || [];
+                    dict.index[len].push({
+                        index : i,
+                        key : area.key,
+                        word : word,
+                        pos : pos
+                    });
+                }
+            }
+        }
+        return dict;
+    };
+
+
+    /*==============================
+    =            Search            =
+    ==============================*/
     _public.search = function(searched){
         var start = _util.now();
         var formatted = _private.formatText(searched, 'text');
         var words = formatted.words;
         var matches = [];
         var i;
+
+        // Search Dictionary for matches
         for (i = 0; i < words.length; i++) {
             var word = words[i];
             var len = word.length;
@@ -197,17 +269,12 @@
             }
         }
 
-        var matchedData = [];
-        for (i = 0; i < matches.length; i++) {
-            matchedData[i] = _public.dict.index[matches[i].len][matches[i].index];
-            matchedData[i].searchedWord = matches[i].search;
-            matchedData[i].offset = matches[i].offset;
-        }
-        var organizedMatches = _private.organizeMatches(matchedData);
-        var results = _private.rankResults(organizedMatches);
+        // Organize matches by key and index
+        var results = _private.getResults(matches, _public.dict.index);
+        var rankedResults = _private.rankResults(results);
 
         _util.console.log("Search took: " + (_util.now() - start) + "ms");
-        //console.log(results);
+
         return _public.settings.highlight ? _private.highlightResults(results) : results;
     };
 
@@ -226,49 +293,55 @@
             }
         } else if(
             index % len === 0 ||
-            Math.ceil(index / len) === Math.ceil( (index + search.length) / len)
+            Math.floor(index / len) === Math.floor( (index + search.length) / len)
         ) {
             matches.push({
                 index : Math.floor(index / len),
-                len: len,
+                wordLength : len,
                 search: search,
-                offset : index % len
+                offset : index % len,
+                partial : len !== search.length
             });
         }
 
         return _private.getMatches(dict, search, len, index + 1, matches);
     };
 
-    _private.organizeMatches = function(matches) {
-        var organizedMatches = [];
+    _private.getResults = function(matches, index) {
+        var formattedData = _private.formattedData;
+        var results = [];
         var map = {};
         var arrIndex = 0;
         for (var i = 0; i < matches.length; i++) {
             var match = matches[i];
-            if(typeof map[match.index] !== "undefined") {
-                organizedMatches[map[match.index]].push(match);
-            } else {
-                map[match.index] = arrIndex;
-                organizedMatches[arrIndex] = [match];
+            var dictIndexItem = index[match.wordLength][match.index];
+            var origDataIndex = dictIndexItem.index;
+            var origDataKey = dictIndexItem.key;
+            var data = formattedData[origDataIndex];
+            // Check if result for item is already in the results array
+            // if it is then add to it, if not, then create a new obj.
+            if(typeof map[origDataIndex] === "undefined") {
+                map[origDataIndex] = arrIndex;
                 arrIndex ++;
             }
+            // Save matches
+            results[map[origDataIndex]] = results[map[origDataIndex]] || {};
+            results[map[origDataIndex]].matches = results[map[origDataIndex]].matches || [];
+            results[map[origDataIndex]].matches.push(_util.extend(dictIndexItem, {
+                searchedWord : match.search,
+                offset: match.offset,
+                partial: match.partial
+            }));
+
+            // Tie data to matches
+            results[map[origDataIndex]].data = results[map[origDataIndex]].data || data;
         }
-        return organizedMatches;
+        return results;
     };
 
-    _private.rankResults = function(organizedMatches) {
-        var formattedData = _private.formattedData;
-        var results = [];
-        for (var i = 0; i < organizedMatches.length; i++) {
-            var matchesForIndex = organizedMatches[i];
-            var index = matchesForIndex[0].index;
-            var matchedTo = formattedData[index];
-            results[i] = matchedTo;
-            results[i].matches = matchesForIndex;
-        }
-
+    _private.rankResults = function(results) {
         var weightedResults = _private.assignWeights(results);
-        return results.sort(function(a,b){
+        return weightedResults.sort(function(a,b){
             return a.weight > b.weight ? -1 : 1;
         });
 
@@ -309,11 +382,12 @@
     _private.highlightResults = function(results) {
         for (var i = 0; i < results.length; i++) {
             var result = results[i];
+
             var matches = result.matches;
             var rangesPerArea = {};
             for (var j = 0; j < matches.length; j++) {
                 var match = matches[j];
-                var replacements = result[match.key].replacements;
+                var replacements = result.data[match.key].replacements;
                 var startPos = match.pos + match.offset;
                 var endPos = match.pos + match.searchedWord.length + match.offset;
                 rangesPerArea[match.key] = rangesPerArea[match.key] || [];
@@ -322,27 +396,26 @@
 
             for (var l = 0; l < _public.settings.searchAreas.length; l++) {
                 var searchAreaKey = _public.settings.searchAreas[l].key;
-                result[searchAreaKey].highlighted = result[searchAreaKey].source;
+                result.data[searchAreaKey].highlighted = result.data[searchAreaKey].original;
             }
 
             for(var area in rangesPerArea) {
-                // var ranges = _private.mergeRanges(rangesPerArea[area]);
-                var ranges = rangesPerArea[area];
-                var sourceText = result[area].source;
+                var ranges = _private.mergeRanges(rangesPerArea[area]);
+                var sourceText = result.data[area].original;
 
                 for (var k = 0; k < ranges.length; k++) {
                     var range = ranges[k];
                     var lowerText = sourceText.slice(0, range[0]);
                     var middleText = sourceText.slice(range[0], range[1]);
-                    var upperText = sourceText.slice(range[1], sourceText.length);
 
+                    var upperText = sourceText.slice(range[1], sourceText.length);
                     middleText = "<" + _public.settings.highlightElem +
                                  " class='" + _public.settings.highlightClass + "'>" +
                                  middleText + "</" + _public.settings.highlightElem + ">";
                     sourceText = lowerText + middleText + upperText;
                 }
 
-                result[area].highlighted = sourceText;
+                result.data[area].highlighted = sourceText;
             }
             
         }
@@ -362,7 +435,7 @@
                 if(
                     lower >= mergedLower &&
                     lower <= mergedUpper &&
-                    upper > mergedUpper
+                    upper >= mergedUpper
                 ) {
                     matched = true;
                     mergedUpper = upper;
@@ -372,7 +445,7 @@
                 if(
                     upper <= mergedUpper &&
                     upper >= mergedLower &&
-                    lower < mergedLower
+                    lower <= mergedLower
                 ) {
                     matched = true;
                     mergedLower = lower;
@@ -390,86 +463,23 @@
     };
 
 
-    // NOTE: This is not working because .replace callback does not mutate position arg @TODO fix it fool.
-    _private.normalizeHighlightRange = function(start, end, replacements) {
-        var i = replacements.length;
-        var offset = 0;
+    _private.normalizeHighlightRange = function(start, end, replacements, formattedString, originalString) {
         //console.log("Old Pos was: " + start);
+        var i = replacements.length;
         while(i--) {
             var replacement = replacements[i];
             var delta = replacement.added - replacement.removed;
-            if(replacement.start + delta <= start) {
+            if(replacement.start <= start) {
                 start -= delta;
                 end -= delta;
-            } else if(replacement.start + delta >= start && replacement.start - delta <= end) {
+            } else if(replacement.start >= start && replacement.start < end) {
                 end -= delta;
             }
-            //console.log("\"" + replacement.match + "\"("+ delta + "chars) was changed at pos: " + replacement.start +", new pos is: " + start);
         }
-        //console.log('Final pos is :' + start);
         return [start, end];
     };
 
-
-
-    _private.transform = {
-        lowerCase : function(str, replacements) {
-            return [str.toLowerCase(), replacements];
-        },
-        replaceDiatrics : function(str, replacements) {
-            return [str.replace(/[^\u0000-\u007E]/g, function(match, pos) {
-                var replacement = _private.diacriticsMap[match] || match;
-                _private.saveReplacement(replacements, replacement, pos, match);
-                return replacement;
-            }), replacements];
-        },
-        removeHTML : function(str, replacements) {
-            // Note - this is a fairly naïve implementation of stripping tags.
-            // it is not particularly secure and assumes that the search data is from a trusted source
-            return [
-                str.replace(/<\/?[^>]+>/g, function(match, pos){
-                    var replacement = "";
-                    _private.saveReplacement(replacements, replacement, pos, match);
-                    return replacement;
-                }), replacements];
-        },
-        removeSpecialChars : function(str, replacements) {
-            return [
-                str.replace(/[\'\’]/g, function(match, pos){
-                    var replacement =  "";
-                    _private.saveReplacement(replacements, replacement, pos, match);
-                    return replacement;
-                }).replace(/[^a-zA-Z0-9]/g, function(match, pos){
-                    var replacement = " ";
-                    _private.saveReplacement(replacements, replacement, pos, match);
-                    return replacement;
-                }).replace(/\s\s+/g, function(match, pos) {
-                    var replacement = " ";
-                    _private.saveReplacement(replacements, replacement, pos, match);
-                    return replacement;
-                }).replace(/^\s|\s$/g, function(match, pos){
-                    var replacement = "";
-                    _private.saveReplacement(replacements, replacement, pos, match);
-                    return replacement;
-                }),
-
-                replacements
-            ];
-        }
-    };
-
-    _private.saveReplacement = function(replacements, replacement, pos, match) {
-        if(replacement !== match && match.length !== replacement.length) {
-            replacements.push({
-                start : pos,
-                removed : match.length,
-                added : replacement.length,
-                replacement : replacement,
-                match: match
-            });
-        }
-    };
-
+    
     _private.diacriticsMap = (function(){
         var map = [{
           'base': 'A',
@@ -732,7 +742,6 @@
             diacriticsMap[letters[j]] = map[i].base;
           }
         }
-
         return diacriticsMap;
     })();
 

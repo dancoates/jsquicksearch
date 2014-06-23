@@ -27,8 +27,11 @@ $.getJSON('data.example.json', function(json, textStatus) {
 
         for (var i = 0; i < results.length; i++) {
             var result = results[i];
-            var title = result.question.source;
-            var description = result.answer.source;
+            var title = result.data.question.highlighted;
+            var description = result.data.answer.highlighted;
+            if(!title) {
+                console.log(title);
+            }
 
             var $container = $('<div class="result-container"/>');
             var $title = $('<h2 class="result-heading"/>');
