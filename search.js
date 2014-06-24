@@ -820,7 +820,7 @@
     // If debug global (used for testing) is set, 
     // then also expose the _private and _util
     // functions so they can be tested.
-    if(JSQUICKSEARCH_DEBUG) {
+    if(typeof JSQUICKSEARCH_DEBUG !== "undefined") {
         args = args.concat([_private, _util]);
     }
 
