@@ -784,7 +784,7 @@
     
 
     _util.now = function(){
-        if(typeof performance !== "undefined") {
+        if(typeof performance !== "undefined" && typeof performance.now !== "undefined") {
             return performance.now();
         } else if (typeof Date.now !== "undefined") {
             return Date.now();
