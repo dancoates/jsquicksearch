@@ -91,11 +91,13 @@
             var j = searchAreas.length;
             while (j--) {
                 var area = searchAreas[j];
-                formattedData[i] = formattedData[i] || {};
-                formattedData[i][area.key] = _private.formatText(item[area.key], area.engine);
-                if(formattedData[i][area.key] !== false){
+                var obj = {};
+                obj[area.key] = _private.formatText(item[area.key], area.engine);
+                if(obj[area.key] !== false){
                     totalData ++;
                 }
+                formattedData[i] = formattedData[i] || item;
+                formattedData[i] = _util.extend(formattedData[i], obj);
             }
         }
         if(totalData === 0) {
@@ -231,7 +233,7 @@
                     var word = searchData.words[k];
                     var len = word.length;
                     pos -=  len + 1;
-                    if(len <= 1) continue;
+                    if(len < _public.settings.minLength) continue;
                     dict.search[len] = dict.search[len] || "";
                     dict.search[len] += word;
                     dict.index[len] = dict.index[len] || [];
