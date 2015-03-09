@@ -97,7 +97,7 @@
                     totalData ++;
                 }
                 formattedData[i] = formattedData[i] || item;
-                formattedData[i] = _util.extend(formattedData[i], obj);
+                formattedData[i] = _util.extend({},formattedData[i], obj);
             }
         }
         if(totalData === 0) {
