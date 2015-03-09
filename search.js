@@ -282,7 +282,6 @@
 
     _private.getMatches = function(dict, search, len, pos, matches) {
         dict[len] = dict[len] || "";
-
         if(len > search.length + _public.settings.partialTolerance) return matches;
 
         var index = dict[len].indexOf(search, pos);
@@ -295,7 +294,7 @@
             }
         } else if(
             index % len === 0 ||
-            Math.floor(index / len) === Math.floor( (index + search.length) / len)
+            Math.floor(index / len) === Math.floor( (index + (search.length - 1)) / len)
         ) {
             matches.push({
                 index : Math.floor(index / len),
