@@ -92,10 +92,15 @@
             while (j--) {
                 var area = searchAreas[j];
                 var obj = {};
-                obj[area.key] = _private.formatText(item[area.key], area.engine);
-                if(obj[area.key] !== false){
+
+                if(typeof item[area.key] === 'string') {
+                    obj[area.key] = _private.formatText(item[area.key], area.engine);
+                }
+
+                if(!!obj[area.key]){
                     totalData ++;
                 }
+
                 formattedData[i] = formattedData[i] || item;
                 formattedData[i] = _util.extend({},formattedData[i], obj);
             }
@@ -227,6 +232,8 @@
             while (j--) {
                 var area = searchAreas[j];
                 var searchData = item[area.key];
+                if(!searchData) continue;
+
                 var pos = searchData.formatted.length + 1;
                 var k = searchData.words.length;
                 while(k--) {
@@ -397,7 +404,10 @@
 
             for (var l = 0; l < _public.settings.searchAreas.length; l++) {
                 var searchAreaKey = _public.settings.searchAreas[l].key;
-                result.data[searchAreaKey].highlighted = result.data[searchAreaKey].original;
+                var data = result.data[searchAreaKey];
+                if(data) {
+                    data.highlighted = data.original;
+                }
             }
 
             for(var area in rangesPerArea) {
