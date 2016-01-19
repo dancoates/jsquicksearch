@@ -1,6 +1,6 @@
 {
   "name": "jsquicksearch",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Superfast relevance based javascript search utility",
   "main": "search.js",
   "directories": {

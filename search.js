@@ -843,8 +843,6 @@
 
     if(typeof module === "object" && module.exports) {
         module.exports = Search;
-    } else if(typeof define === "function" && define.amd) {
-        define(["search"], Search);
     } else {
         window.Search = Search;
     }
