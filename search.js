@@ -842,7 +842,7 @@
     // Set up for various module systems
 
     if(typeof module === "object" && module.exports) {
-        module.exports = Search);
+        module.exports = Search;
     } else if(typeof define === "function" && define.amd) {
         define(["search"], Search);
     } else {
