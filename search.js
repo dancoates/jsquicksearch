@@ -837,7 +837,17 @@
 
     // Extend prototype and bind to window
     _util.extend.apply(window, args);
-    window.Search = Search;
+
+
+    // Set up for various module systems
+
+    if(typeof module === "object" && module.exports) {
+        module.exports = Search);
+    } else if(typeof define === "function" && define.amd) {
+        define(["search"], Search);
+    } else {
+        window.Search = Search;
+    }
 
 })(window, document);
 

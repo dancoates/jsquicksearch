@@ -1,0 +1,26 @@
+{
+  "name": "jsquicksearch",
+  "version": "0.1.0",
+  "description": "Superfast relevance based javascript search utility",
+  "main": "search.js",
+  "directories": {
+    "example": "example",
+    "test": "test"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dancoates/jsquicksearch.git"
+  },
+  "keywords": [
+    "search"
+  ],
+  "author": "Dan Coates",
+  "license": "UNLICENSED",
+  "bugs": {
+    "url": "https://github.com/dancoates/jsquicksearch/issues"
+  },
+  "homepage": "https://github.com/dancoates/jsquicksearch#readme"
+}
