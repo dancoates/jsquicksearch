@@ -177,6 +177,14 @@
                 offset += match.length - replacement.length;
                 return replacement;
             });
+
+            offset = 0;
+            str = str.replace(/[-_]/g, function(match, pos){
+                var replacement = "";
+                _private.saveReplacement(replacements, replacement, pos, match, offset);
+                offset += match.length - replacement.length;
+                return replacement;
+            });
             offset = 0;
             str = str.replace(/[^a-zA-Z0-9]/g, function(match, pos){
                 var replacement = " ";
