@@ -1,3 +1,7 @@
+// @TODO look for direct matches in spaceless string...
+// eg if user searches for test123 then it should match 'this is a test 1.2.3' in string.
+// @TODO fuzzy regex matching
+
 /*=================================
 =            Search JS            =
 =================================*/
@@ -53,10 +57,13 @@
             highlight: true,
             highlightElem : 'span',
             highlightClass : 'search-highlight',
-            partialTolerance: 10,
+            partialTolerance: 50, // Percent of word that needs to be made up of partial
+            partialMinLength: 3,
             matchPartials : true,
             minLength: 2,
-            duplicatePenaltyMultiplier : 0.3
+            duplicatePenaltyMultiplier : 0.3,
+            cutoff : 0,
+            log : true
         };
 
         _public.rawData = data;
@@ -86,6 +93,7 @@
         var i = rawData.length;
         var formattedData = [];
         var totalData = 0;
+
         while(i--) {
             var item = rawData[i];
             var j = searchAreas.length;
@@ -101,13 +109,15 @@
                     totalData ++;
                 }
 
-                formattedData[i] = formattedData[i] || item;
+                formattedData[i] = formattedData[i] || {};
                 formattedData[i] = _util.extend({},formattedData[i], obj);
             }
         }
+
         if(totalData === 0) {
             return false;
         }
+
         return formattedData;
     };
 
@@ -179,8 +189,11 @@
             });
 
             offset = 0;
-            str = str.replace(/[-_]/g, function(match, pos){
-                var replacement = "";
+            str = str.replace(/(\w+)[-_](\w+)/g, function(match, g1, g2, pos){
+                // replace with phrase with both no space between and a space between to account
+                // for people who search for hotdog or hot-dog or hot dog when the text in the 
+                // data is any of those combinations
+                var replacement = g1 + " " + g2 + " " + g1 + g2;
                 _private.saveReplacement(replacements, replacement, pos, match, offset);
                 offset += match.length - replacement.length;
                 return replacement;
@@ -289,19 +302,23 @@
         // Organize matches by key and index
         var results = _private.getResults(matches, _public.dict.index);
         var rankedResults = _private.rankResults(results);
+        var filteredResults = _private.filterResults(rankedResults);
 
         _util.console.log("Search took: " + (_util.now() - start) + "ms");
 
-        return _public.settings.highlight ? _private.highlightResults(results) : results;
+        return _public.settings.highlight ? _private.highlightResults(filteredResults) : filteredResults;
     };
 
     _private.getMatches = function(dict, search, len, pos, matches) {
         dict[len] = dict[len] || "";
-        if(len > search.length + _public.settings.partialTolerance) return matches;
+        if(((search.length / len) * 100) < _public.settings.partialTolerance) return matches;
 
         var index = dict[len].indexOf(search, pos);
         if(index === -1) {
-            if(_public.settings.matchPartials === true) {
+            if(
+                _public.settings.matchPartials === true &&
+                len >= _public.settings.partialMinLength // don't partial match words below this length
+            ) {
                 // look in longer words for partial match
                 len ++;
             } else {
@@ -334,6 +351,7 @@
             var origDataIndex = dictIndexItem.index;
             var origDataKey = dictIndexItem.key;
             var data = formattedData[origDataIndex];
+            var originalData = _public.rawData[origDataIndex];
             // Check if result for item is already in the results array
             // if it is then add to it, if not, then create a new obj.
             if(typeof map[origDataIndex] === "undefined") {
@@ -349,10 +367,26 @@
                 partial: match.partial
             }));
 
+            // Save original index
+            results[map[origDataIndex]].index = results[map[origDataIndex]].index || origDataIndex;
+
             // Tie data to matches
             results[map[origDataIndex]].data = results[map[origDataIndex]].data || data;
+
+            // Tie original data to matches
+            results[map[origDataIndex]].originalData = results[map[origDataIndex]].originalData || originalData;
         }
         return results;
+    };
+
+    _private.filterResults = function(results) {
+        var filtered = [];
+        for (var i = 0; i < results.length; i++) {
+            if(results[i].weight > _public.settings.cutoff) {
+                filtered.push(results[i]);
+            }
+        }
+        return filtered;
     };
 
     _private.rankResults = function(results) {
@@ -375,19 +409,19 @@
                 var offsetPenalty = match.offset / match.word.length;
                 var matchWeight = baseWeight * proportion - offsetPenalty;
                 var duplicatePenaltyMultiplier = 1;
+                //@TODO add weighting for proximity to other terms
 
                 if(words[match.key]) {
-                    if(words[match.key][match.searchedWord]) {
-                        duplicatePenaltyMultiplier = Math.pow(_public.settings.duplicatePenaltyMultiplier, words[match.key][match.searchedWord]);
-                        words[match.key][match.searchedWord] ++;
+                    if(words[match.key][match.word]) {
+                        duplicatePenaltyMultiplier = Math.pow(_public.settings.duplicatePenaltyMultiplier, words[match.key][match.word]);
+                        words[match.key][match.word] ++;
                     } else {
-                        words[match.key][match.searchedWord] = 1;
+                        words[match.key][match.word] = 1;
                     }
                 } else {
                     words[match.key] = {};
-                    words[match.key][match.searchedWord] = 1;
+                    words[match.key][match.word] = 1;
                 }
-
                 weight += matchWeight * duplicatePenaltyMultiplier;
             }
             result.weight = weight;
@@ -811,6 +845,7 @@
     };
 
     _util.console = (function(){
+
         var noop = function () {};
         var method;
         var methods = [
@@ -821,15 +856,25 @@
         ];
         var i = methods.length;
         var console = (window.console = window.console || {});
+        var consoleUtil = {};
 
         while (i--) {
             method = methods[i];
             // Only stub undefined methods.
             if (!console[method]) {
-                console[method] = noop;
+                consoleUtil[method] = noop;
+            } else {
+                consoleUtil[method] = (function(method){
+                    return function(){
+                        if(_public.settings.log) {
+                            console[method].apply(console, arguments);
+                        }
+                    }
+                })(method);
             }
         }
-        return console;
+
+        return consoleUtil;
     })();
 
 
